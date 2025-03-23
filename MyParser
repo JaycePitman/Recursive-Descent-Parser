@@ -1,0 +1,627 @@
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.FileNotFoundException;
+import java.util.Scanner;
+import java.util.ArrayList;
+import java.util.List;
+
+public class App {
+    public enum charClass{
+        UNDERSCORE, LETTER, DIGIT, UNKNOWN, EOF
+    }
+    public enum tokens{
+        INT_LIT, IDENT, ASSIGN_OP, ADD_OP, SUB_OP, 
+        MULT_OP, DIV_OP, LEFT_PAREN, RIGHT_PAREN, 
+        EQUALS, NOT_EQUALS, GREATER_THAN, LESS_THAN, 
+        FUN_CALL, INPUT, OUTPUT, IF, WHILE, TYPE,
+        THEN, ELSE, END, LOOP, PROGRAM, BEGIN, 
+        COMMA, COLON, SEMI_COLON, EOF
+    }
+    
+    public static List<String> identifiers = new ArrayList<>();
+
+    public static charClass charClass;
+    public static char [] lexemeArray = new char[100];
+    public static String lexemeString;
+    public static char nextChar;
+    public static int lexLen;
+    public static int token;
+    public static tokens nextToken;
+    public static File file;
+    public static FileReader reader;
+
+    public static void main(String[] args) throws Exception {
+        try {
+            System.out.println("Enter file path: ");
+            Scanner input = new Scanner(System.in);
+            String filePath = input.nextLine();
+            file = new File(filePath);
+            input.close();
+            reader = new FileReader(file);
+            getChar();
+
+            while (nextToken != tokens.EOF) {
+              lex();
+              PROGRAM();
+            }
+            reader.close();
+          } 
+          catch (FileNotFoundException e) {
+            System.out.println("Could not open file.");
+            e.printStackTrace();
+          }
+    }
+    //Matches tokens with the token type
+    public static tokens lookup(char ch){
+        switch(ch){
+            case'(':
+                addChar();
+                nextToken = tokens.LEFT_PAREN;
+                break;
+            case')':
+                addChar();
+                nextToken = tokens.RIGHT_PAREN;
+                break;
+            case'+':
+                addChar();
+                nextToken = tokens.ADD_OP;
+                break;
+            case'-':
+                addChar();
+                nextToken = tokens.SUB_OP;
+                break;
+            case'*':
+                addChar();
+                nextToken = tokens.MULT_OP;
+                break;
+            case'/':
+                addChar();
+                nextToken = tokens.DIV_OP;
+                break;
+            case'=':
+                addChar();
+                nextToken = tokens.EQUALS;
+                break;
+            //case'<>':
+                //addChar();
+               // nextToken = tokens.NOT_EQUALS;
+               // break;
+            case'>':
+                addChar();
+                nextToken = tokens.GREATER_THAN;
+                break;
+            case'<':
+                addChar();
+                nextToken = tokens.LESS_THAN;
+                break;
+            //case':=':
+            //    addChar();
+            //    nextToken = tokens.ASSIGN_OP;
+            //    break;
+            case';':
+                addChar();
+                nextToken = tokens.SEMI_COLON;
+                break;
+            case':':
+                addChar();
+                nextToken = tokens.COLON;
+                break;
+            case',':
+                addChar();
+                nextToken = tokens.COMMA;
+                break;
+            default:
+            addChar();
+            nextToken = tokens.EOF;
+            break;
+        }
+        return nextToken;
+    }
+
+    public static void addChar(){
+        if(lexLen <= 98){
+            lexemeArray[lexLen++] = nextChar;
+            lexemeArray[lexLen] = 0;
+        }
+        else
+            System.out.printf("Error - lexeme is too long\n");
+    }
+
+    public static void getChar(){
+        try{
+            int unicodeChar = reader.read();
+            if(unicodeChar != -1){
+                nextChar = (char)unicodeChar;
+            }
+            else{
+                nextChar = '\0';
+                nextToken = tokens.EOF;
+            }
+        }
+        catch(IOException e){
+            e.printStackTrace();
+        }
+        
+        if(nextToken != tokens.EOF){
+            if(Character.isLetter(nextChar)){
+                charClass = charClass.LETTER;
+            }
+            else if(Character.isDigit(nextChar)){
+                charClass = charClass.DIGIT;
+            }
+            else if(nextChar == '_'){
+                charClass = charClass.UNDERSCORE;
+            }
+            else
+                charClass = charClass.UNKNOWN;
+        }
+        else
+            charClass = charClass.EOF;
+    }
+
+    public static void getNonBlank(){
+        while(Character.isSpaceChar(nextChar)){
+            getChar();
+        }
+    }
+
+    public static tokens lex(){
+        lexLen = 0;
+        for(int i =0;lexemeArray[i]!= '\0'; i++){
+            lexemeArray[i] = '\0';
+        }
+        getNonBlank();
+        switch(charClass){
+            /*parse identifiers */
+            case LETTER:
+            case UNDERSCORE:
+                addChar();
+                getChar();
+                while(charClass == charClass.LETTER || 
+                      charClass == charClass.DIGIT || 
+                      charClass == charClass.UNDERSCORE){
+                    addChar();
+                    getChar();
+                }
+                lexemeString = new String(lexemeArray);
+                switch(lexemeString){
+                    case "program":
+                        nextToken = tokens.PROGRAM;
+                        break;
+                    case "begin":
+                        nextToken = tokens.BEGIN;
+                        break;
+                    case "end":
+                        nextToken = tokens.END;
+                        break;
+                    case "if":
+                        nextToken = tokens.IF;
+                        break;
+                    case "then":
+                        nextToken = tokens.THEN;
+                        break;
+                    case "else":
+                        nextToken = tokens.ELSE;
+                        break;
+                    case "input":
+                        nextToken = tokens.INPUT;
+                        break;
+                    case "output":
+                        nextToken = tokens.OUTPUT;
+                        break;
+                    case "int":
+                        nextToken = tokens.TYPE;
+                        break;
+                    case "while":
+                        nextToken = tokens.WHILE;
+                        break;
+                    case "loop":
+                        nextToken = tokens.LOOP;
+                        break;
+                    case "call":
+                        nextToken = tokens.FUN_CALL;
+                        break;
+                    default:
+                        nextToken = tokens.IDENT;
+                        break;
+                }
+                if(!identifiers.contains(lexemeString)){
+                    identifiers.add(lexemeString);
+                }
+                else{
+                    //error
+                }
+                break;
+            /*parse integer literals and floats and doubles */
+            case DIGIT:
+                addChar();
+                getChar();
+                while(charClass == charClass.DIGIT){
+                    addChar();
+                    getChar();
+                }
+                nextToken = tokens.INT_LIT;
+                break;
+            /*parentheses and operators */
+            case UNKNOWN:
+                lookup(nextChar);
+                if(nextToken == tokens.LESS_THAN){
+                    addChar();
+                    getChar();
+                    lookup(nextChar);
+                    if(nextToken == tokens.GREATER_THAN){
+                        addChar();
+                        getChar();
+                        nextToken = tokens.NOT_EQUALS;
+                    }
+                    else{
+                        //error
+                    }
+                }
+                else if(nextToken == tokens.COLON){
+                    addChar();
+                    getChar();
+                    lookup(nextChar);
+                    if(nextToken == tokens.EQUALS){
+                        addChar();
+                        getChar();
+                        nextToken = tokens.ASSIGN_OP;
+                    }
+                    else{
+                        //error
+                    }
+                }
+                getChar();
+                break;
+            /*EOF */
+            case EOF:
+                nextToken = tokens.EOF;
+                lexemeArray[0] = 'E';
+                lexemeArray[1] = 'O';
+                lexemeArray[2] = 'F';
+                lexemeArray[3] = 0;
+                break;
+        }
+        lexemeString = new String(lexemeArray);
+        System.out.printf("Next token is: %s, Next lexeme is %s\n", nextToken, lexemeString);
+        return nextToken;
+    }
+    //EXPR -> FACTOR | FACTOR (+|-) EXPR
+     public static void EXPR(){
+        System.out.printf("EXPR\n");
+        FACTOR(); // parse first factor
+        while(nextToken == tokens.ADD_OP || nextToken == tokens.SUB_OP){
+            lex(); 
+            FACTOR();
+        } // get the next token and parse the next EXPR
+    }
+    //FACTOR -> OPERAND | OPERAND (*|/) FACTOR
+    public static void FACTOR(){
+        System.out.printf("FACTOR\n");
+        OPERAND(); // parse the first operand
+        while(nextToken == tokens.MULT_OP || nextToken == tokens.DIV_OP){
+            lex(); 
+            OPERAND();
+        } // get the next token and parse the next FACTOR
+    }
+    //OPERAND -> NUM|ID|( EXPR )|FUNCALL 
+    public static void OPERAND(){
+        System.out.printf("OPERAND\n");
+        //Determine which RHS
+        if(nextToken == tokens.IDENT || nextToken == tokens.INT_LIT)
+          {lex();} //get next token
+        else if (nextToken == tokens.FUN_CALL) //Function call
+          {
+            lex();
+            FUN_CALL();
+          }
+        else if (nextToken == tokens.LEFT_PAREN)//( EXPR )
+          {
+            lex(); 
+            EXPR(); 
+           if(nextToken == tokens.RIGHT_PAREN)
+              {lex();}
+           //else{error();}
+          }
+         //else {error();}
+    }
+    //ID_LIST -> ID | ID , ID_LIST
+    public static void ID_LIST(){
+        System.out.printf("ID_LIST\n");
+        if(nextToken == tokens.IDENT){
+            lex();
+            if(nextToken == tokens.COMMA){
+                ID_LIST();
+            }
+        }
+        else{
+            //error
+        }
+    }
+    //ID -> (_|a|...|z|A|...|Z)(_|a|...|z|A|...|Z|0|...|9)*
+    //need to add check for if ID is a reserved word
+   /* public static void ID(){
+        if(Character.isLetter(nextChar)|| nextChar == '_'){
+            lex();//get next token
+            while(
+                Character.isLetter(nextChar)
+                ||Character.isDigit(nextChar)
+                ||nextChar == '_'){
+                lex();//keep getting next tokens
+            }
+        }
+        else{
+            //error
+        }
+    }*/
+    //FUNCALL -> call ID( ID_LIST )
+    public static void FUN_CALL(){
+        System.out.printf("FUNCALL\n");
+        ID();
+        lex();
+        if(nextToken == tokens.LEFT_PAREN){
+            lex();
+            ID_LIST();
+            if(nextToken == tokens.RIGHT_PAREN){
+                lex();
+            }
+            else{
+                //error
+            }
+        }
+        else{
+            //error
+        }
+    }
+    //COMP -> ( OPERAND = OPERAND ) 
+    //      | ( OPERAND <> OPERAND ) 
+    //      | ( OPERAND (<|>) OPERAND )
+    public static void COMP(){
+        System.out.printf("COMP\n");
+        if(nextToken == tokens.LEFT_PAREN){
+            lex();
+            OPERAND();
+            if(nextToken == tokens.EQUALS || 
+                nextToken == tokens.NOT_EQUALS ||
+                nextToken == tokens.GREATER_THAN||
+                nextToken == tokens.LESS_THAN){
+                    lex();
+                    OPERAND();
+                    if(nextToken == tokens.RIGHT_PAREN){
+                        lex();
+                    }
+                    else{
+                        //error
+                    }
+            }
+            else{
+                //error
+            }
+        }
+        else{
+            //error
+        }
+    }
+    //TYPE -> int | float | double
+    public static void TYPE() {
+        if(nextToken == tokens.INT_LIT){
+            //hmmmmmm come back later
+        }
+    }
+    //DECL -> ID_LIST : TYPE ;
+    public static void DECL(){
+        System.out.printf("DECL\n");
+        ID_LIST();
+        if(nextToken == tokens.COLON){
+            lex(); //get next token
+            TYPE();
+            if(nextToken == tokens.SEMI_COLON){
+                lex();
+            }
+            else{
+                //error
+            }
+        }
+        else{
+            //error
+        }
+    }
+    //DECL_SEC -> DECL | DECL DECL_SEC
+    public static void DECL_SEC(){
+        System.out.printf("DECL_SEC\n");
+        DECL();
+        if(nextToken == tokens.IDENT){
+            DECL_SEC();
+        }
+    }
+    //ASSIGN -> ID := EXPR ;
+    public static void ASSIGN(){
+        System.out.printf("ASSIGN");
+        ID();
+        if(nextToken == tokens.ASSIGN_OP){
+            lex();
+            EXPR();
+            if(nextToken == tokens.SEMI_COLON){
+                lex();
+            }
+            else{
+                //error
+            }
+        }
+        else{
+            //error
+        }
+    }
+    //IFSTMT -> if COMP then STMT_SEC end if ; |
+    //          if COMP then STMT_SEC else STMT_SEC end if ;
+    public static void IF_STMT(){
+        System.out.printf("IFSTMT");
+        lex();
+        COMP();
+        if(nextToken == tokens.THEN){
+            lex();
+            STMT_SEC();
+            if(nextToken == tokens.ELSE){
+                lex();
+                STMT_SEC();
+            }
+            if(nextToken == tokens.END){
+                lex();
+                if(nextToken == tokens.IF){
+                    lex();
+                    if(nextToken == tokens.SEMI_COLON){
+                        lex();
+                    }
+                    else{
+                        //error
+                    }
+                }
+                else{
+                    //error
+                }
+            }
+            else{
+                //error
+            }
+        }
+        else{
+            //error
+        }
+    }
+    //WHILESTMT -> while COMP loop STMT_SEC end loop ;
+    public static void WHILE_STMT(){
+        System.out.printf("WHILESTMT\n");
+        lex();
+        COMP();
+        if(nextToken == tokens.LOOP){
+            lex();
+            STMT_SEC();
+            if(nextToken == tokens.END){
+                lex();
+                if(nextToken == tokens.LOOP){
+                    lex();
+                    if(nextToken == tokens.SEMI_COLON){
+                        lex();
+                    }
+                    else{
+                        //error
+                    }
+                }
+                else{
+                    //error
+                }
+            }
+            else{
+                //error
+            }
+        }
+        else{
+            //error
+        }
+    }
+    //INPUT -> input ID_LIST;
+    public static void INPUT(){
+        System.out.printf("INPUT\n");
+        if(nextToken == tokens.INPUT){
+            lex();
+            ID_LIST();
+            if(nextToken == tokens.SEMI_COLON){
+                lex();
+            }
+            else{
+                //error
+            }
+        }
+        else{
+            //error
+        }
+    }
+    //OUTPUT -> output ID_LIST | output NUM;
+    //////**********should there be a semi colon after ID_LIST ?
+    public static void OUTPUT(){
+        System.out.printf("OUTPUT\n");
+        if(nextToken == tokens.OUTPUT){
+            lex();
+            //could do switch stmt here
+            if(nextToken == tokens.IDENT){
+                ID_LIST();
+            }
+            else if(nextToken == tokens.INT_LIT){
+                //NUM();
+            }
+            else{
+                //error
+            }
+        }
+        else{
+            //error
+        }
+    }
+    //STMT -> ASSIGN | IFSTMT | WHILESTMT | INPUT | OUTPUT
+    public static void STMT(){
+        System.out.printf("STMT");
+        switch (nextToken) {
+            case IDENT:
+                ASSIGN();
+                break;
+            case IF:
+                IF_STMT();
+                break;
+            case WHILE:
+                WHILE_STMT();
+                break;
+            case INPUT:
+                INPUT();
+                break;
+            case OUTPUT:
+                OUTPUT();
+                break;
+            default:
+                throw new AssertionError();
+        }
+        lex();
+    }
+    //STMT_SEC -> STMT | STMT STMT_SEC
+    public static void STMT_SEC(){
+        System.out.printf("STMT_SEC\n");
+        STMT();
+        if(nextToken != tokens.EOF){
+            STMT_SEC();
+        }
+    }
+    //PROGRAM -> program DECL_STMT begin STMT_SEC end; |
+    //           program begin STMT_SEC end;        
+    public static void PROGRAM(){
+        System.out.printf("PROGRAM\n");
+        if(lexemeString.contains("program")){
+            lex();
+            if(nextToken == tokens.IDENT){
+                DECL_SEC();
+                lex();
+            }
+            if(lexemeString.contains("begin")){
+                STMT_SEC();
+                lex();
+                if(lexemeString.contains("end")){
+                    lex();
+                    if(nextToken == tokens.SEMI_COLON){
+                        lex();
+                    }
+                    else{
+                        //error
+                    }
+                }
+                else{
+                    //error
+                }
+            }
+            else{
+                //error
+            }
+        }
+        else{
+            //error
+        }
+    }
+}
