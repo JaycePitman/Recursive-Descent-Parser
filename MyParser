@@ -39,12 +39,11 @@ public class App {
             file = new File(filePath);
             input.close();
             reader = new FileReader(file);
+            
             getChar();
+            lex();
+            PROGRAM();
 
-            while (nextToken != tokens.EOF) {
-              lex();
-              PROGRAM();
-            }
             reader.close();
           } 
           catch (FileNotFoundException e) {
@@ -83,10 +82,6 @@ public class App {
                 addChar();
                 nextToken = tokens.EQUALS;
                 break;
-            //case'<>':
-                //addChar();
-               // nextToken = tokens.NOT_EQUALS;
-               // break;
             case'>':
                 addChar();
                 nextToken = tokens.GREATER_THAN;
@@ -95,10 +90,6 @@ public class App {
                 addChar();
                 nextToken = tokens.LESS_THAN;
                 break;
-            //case':=':
-            //    addChar();
-            //    nextToken = tokens.ASSIGN_OP;
-            //    break;
             case';':
                 addChar();
                 nextToken = tokens.SEMI_COLON;
@@ -112,9 +103,9 @@ public class App {
                 nextToken = tokens.COMMA;
                 break;
             default:
-            addChar();
-            nextToken = tokens.EOF;
-            break;
+                addChar();
+                nextToken = tokens.EOF;
+                break;
         }
         return nextToken;
     }
@@ -161,7 +152,7 @@ public class App {
     }
 
     public static void getNonBlank(){
-        while(Character.isSpaceChar(nextChar)){
+        while(Character.isWhitespace(nextChar)){
             getChar();
         }
     }
@@ -184,7 +175,7 @@ public class App {
                     addChar();
                     getChar();
                 }
-                lexemeString = new String(lexemeArray);
+                lexemeString = new String(lexemeArray).trim();
                 switch(lexemeString){
                     case "program":
                         nextToken = tokens.PROGRAM;
@@ -213,6 +204,12 @@ public class App {
                     case "int":
                         nextToken = tokens.TYPE;
                         break;
+                    case "float":
+                        nextToken = tokens.TYPE;
+                        break;
+                    case "double":
+                        nextToken = tokens.TYPE;
+                        break;
                     case "while":
                         nextToken = tokens.WHILE;
                         break;
@@ -224,14 +221,15 @@ public class App {
                         break;
                     default:
                         nextToken = tokens.IDENT;
+                        if(!identifiers.contains(lexemeString)){
+                            identifiers.add(lexemeString);
+                        }
+                        else{
+                            //error
+                        }
                         break;
                 }
-                if(!identifiers.contains(lexemeString)){
-                    identifiers.add(lexemeString);
-                }
-                else{
-                    //error
-                }
+
                 break;
             /*parse integer literals and floats and doubles */
             case DIGIT:
@@ -260,16 +258,16 @@ public class App {
                     }
                 }
                 else if(nextToken == tokens.COLON){
-                    addChar();
                     getChar();
-                    lookup(nextChar);
-                    if(nextToken == tokens.EQUALS){
-                        addChar();
-                        getChar();
-                        nextToken = tokens.ASSIGN_OP;
-                    }
-                    else{
-                        //error
+                    if(nextChar == '='){
+                        lookup(nextChar);
+                        if(nextToken == tokens.EQUALS){
+                            //getChar();
+                            nextToken = tokens.ASSIGN_OP;
+                        }
+                        else{
+                            //error
+                        }
                     }
                 }
                 getChar();
@@ -283,7 +281,7 @@ public class App {
                 lexemeArray[3] = 0;
                 break;
         }
-        lexemeString = new String(lexemeArray);
+        lexemeString = new String(lexemeArray).trim();
         System.out.printf("Next token is: %s, Next lexeme is %s\n", nextToken, lexemeString);
         return nextToken;
     }
@@ -291,18 +289,18 @@ public class App {
      public static void EXPR(){
         System.out.printf("EXPR\n");
         FACTOR(); // parse first factor
-        while(nextToken == tokens.ADD_OP || nextToken == tokens.SUB_OP){
+        if(nextToken == tokens.ADD_OP || nextToken == tokens.SUB_OP){
             lex(); 
-            FACTOR();
+            EXPR();
         } // get the next token and parse the next EXPR
     }
     //FACTOR -> OPERAND | OPERAND (*|/) FACTOR
     public static void FACTOR(){
         System.out.printf("FACTOR\n");
         OPERAND(); // parse the first operand
-        while(nextToken == tokens.MULT_OP || nextToken == tokens.DIV_OP){
+        if(nextToken == tokens.MULT_OP || nextToken == tokens.DIV_OP){
             lex(); 
-            OPERAND();
+            FACTOR();
         } // get the next token and parse the next FACTOR
     }
     //OPERAND -> NUM|ID|( EXPR )|FUNCALL 
@@ -332,6 +330,7 @@ public class App {
         if(nextToken == tokens.IDENT){
             lex();
             if(nextToken == tokens.COMMA){
+                lex();
                 ID_LIST();
             }
         }
@@ -339,22 +338,6 @@ public class App {
             //error
         }
     }
-    //ID -> (_|a|...|z|A|...|Z)(_|a|...|z|A|...|Z|0|...|9)*
-    //need to add check for if ID is a reserved word
-   /* public static void ID(){
-        if(Character.isLetter(nextChar)|| nextChar == '_'){
-            lex();//get next token
-            while(
-                Character.isLetter(nextChar)
-                ||Character.isDigit(nextChar)
-                ||nextChar == '_'){
-                lex();//keep getting next tokens
-            }
-        }
-        else{
-            //error
-        }
-    }*/
     //FUNCALL -> call ID( ID_LIST )
     public static void FUN_CALL(){
         System.out.printf("FUNCALL\n");
@@ -403,21 +386,20 @@ public class App {
             //error
         }
     }
-    //TYPE -> int | float | double
-    public static void TYPE() {
-        if(nextToken == tokens.INT_LIT){
-            //hmmmmmm come back later
-        }
-    }
     //DECL -> ID_LIST : TYPE ;
     public static void DECL(){
         System.out.printf("DECL\n");
         ID_LIST();
         if(nextToken == tokens.COLON){
             lex(); //get next token
-            TYPE();
-            if(nextToken == tokens.SEMI_COLON){
+            if(nextToken == tokens.TYPE){
                 lex();
+                if(nextToken == tokens.SEMI_COLON){
+                    lex();
+                }
+                else{
+                    //error
+                }
             }
             else{
                 //error
@@ -437,13 +419,13 @@ public class App {
     }
     //ASSIGN -> ID := EXPR ;
     public static void ASSIGN(){
-        System.out.printf("ASSIGN");
-        ID();
+        System.out.printf("ASSIGN\n");
+        lex();
         if(nextToken == tokens.ASSIGN_OP){
             lex();
             EXPR();
             if(nextToken == tokens.SEMI_COLON){
-                lex();
+                return;
             }
             else{
                 //error
@@ -502,7 +484,7 @@ public class App {
                 if(nextToken == tokens.LOOP){
                     lex();
                     if(nextToken == tokens.SEMI_COLON){
-                        lex();
+                        return;
                     }
                     else{
                         //error
@@ -527,7 +509,7 @@ public class App {
             lex();
             ID_LIST();
             if(nextToken == tokens.SEMI_COLON){
-                lex();
+                return;
             }
             else{
                 //error
@@ -541,7 +523,7 @@ public class App {
     //////**********should there be a semi colon after ID_LIST ?
     public static void OUTPUT(){
         System.out.printf("OUTPUT\n");
-        if(nextToken == tokens.OUTPUT){
+        if(nextToken == tokens.OUTPUT){//can get rid off already checked
             lex();
             //could do switch stmt here
             if(nextToken == tokens.IDENT){
@@ -560,7 +542,7 @@ public class App {
     }
     //STMT -> ASSIGN | IFSTMT | WHILESTMT | INPUT | OUTPUT
     public static void STMT(){
-        System.out.printf("STMT");
+        System.out.printf("STMT\n");
         switch (nextToken) {
             case IDENT:
                 ASSIGN();
@@ -586,7 +568,7 @@ public class App {
     public static void STMT_SEC(){
         System.out.printf("STMT_SEC\n");
         STMT();
-        if(nextToken != tokens.EOF){
+        if(nextToken != tokens.END){
             STMT_SEC();
         }
     }
@@ -598,11 +580,10 @@ public class App {
             lex();
             if(nextToken == tokens.IDENT){
                 DECL_SEC();
-                lex();
             }
             if(lexemeString.contains("begin")){
-                STMT_SEC();
                 lex();
+                STMT_SEC();
                 if(lexemeString.contains("end")){
                     lex();
                     if(nextToken == tokens.SEMI_COLON){
@@ -625,3 +606,4 @@ public class App {
         }
     }
 }
+
