@@ -7,32 +7,51 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class App {
-    public enum charClass{
-        UNDERSCORE, LETTER, DIGIT, UNKNOWN, EOF
+    public enum CharClass{
+        UNDERSCORE, LETTER, DIGIT, UNKNOWN, ERROR,EOF
     }
-    public enum tokens{
+    public enum Tokens{
         INT_LIT, IDENT, ASSIGN_OP, ADD_OP, SUB_OP, 
         MULT_OP, DIV_OP, LEFT_PAREN, RIGHT_PAREN, 
         EQUALS, NOT_EQUALS, GREATER_THAN, LESS_THAN, 
         FUN_CALL, INPUT, OUTPUT, IF, WHILE, TYPE,
         THEN, ELSE, END, LOOP, PROGRAM, BEGIN, 
-        COMMA, COLON, SEMI_COLON, EOF
+        COMMA, COLON, DECIMAL, SEMI_COLON, 
+        ERROR, EOF
     }
     
     public static List<String> identifiers = new ArrayList<>();
+    public static List<Character> lexemeList = new ArrayList<>();
 
-    public static charClass charClass;
-    public static char [] lexemeArray = new char[100];
+    public static CharClass charClass;
     public static String lexemeString;
     public static char nextChar;
     public static int lexLen;
     public static int token;
-    public static tokens nextToken;
+    public static Tokens nextToken;
     public static File file;
     public static FileReader reader;
+    public static int lineCount = 1;
+    public static boolean errorFound = false;
 
     public static void main(String[] args) throws Exception {
         try {
+            identifiers.add("program");
+            identifiers.add("begin");
+            identifiers.add("end");
+            identifiers.add("if");
+            identifiers.add("then");
+            identifiers.add("else");
+            identifiers.add("input");
+            identifiers.add("output");
+            identifiers.add("int");
+            identifiers.add("while");
+            identifiers.add("loop");
+            identifiers.add("call");
+            identifiers.add("int");
+            identifiers.add("float");
+            identifiers.add("double");
+
             System.out.println("Enter file path: ");
             Scanner input = new Scanner(System.in);
             String filePath = input.nextLine();
@@ -47,76 +66,91 @@ public class App {
             reader.close();
           } 
           catch (FileNotFoundException e) {
-            System.out.println("Could not open file.");
+            System.out.println("Error! Could not open file.");
             e.printStackTrace();
           }
     }
+    //returns true if errors were found
+    public static boolean isThereErrors(){
+        return errorFound;
+    }
+    //Used when errors are found to:
+    //  - display error message 
+    //  - set charClass and nextToken to ERROR status 
+    //  - errorFound to true
+    public static void foundError(String  s, int line){
+        //format string "Error !! <error message> at line <lineCount>"
+        System.out.printf("%s%d!\n", s, line);
+        charClass = CharClass.ERROR;
+        nextToken = Tokens.ERROR;
+        errorFound = true;
+    }
     //Matches tokens with the token type
-    public static tokens lookup(char ch){
+    public static Tokens lookup(char ch){
         switch(ch){
             case'(':
                 addChar();
-                nextToken = tokens.LEFT_PAREN;
+                nextToken = Tokens.LEFT_PAREN;
                 break;
             case')':
                 addChar();
-                nextToken = tokens.RIGHT_PAREN;
+                nextToken = Tokens.RIGHT_PAREN;
                 break;
             case'+':
                 addChar();
-                nextToken = tokens.ADD_OP;
+                nextToken = Tokens.ADD_OP;
                 break;
             case'-':
                 addChar();
-                nextToken = tokens.SUB_OP;
+                nextToken = Tokens.SUB_OP;
                 break;
             case'*':
                 addChar();
-                nextToken = tokens.MULT_OP;
+                nextToken = Tokens.MULT_OP;
                 break;
             case'/':
                 addChar();
-                nextToken = tokens.DIV_OP;
+                nextToken = Tokens.DIV_OP;
                 break;
             case'=':
                 addChar();
-                nextToken = tokens.EQUALS;
+                nextToken = Tokens.EQUALS;
                 break;
             case'>':
                 addChar();
-                nextToken = tokens.GREATER_THAN;
+                nextToken = Tokens.GREATER_THAN;
                 break;
             case'<':
                 addChar();
-                nextToken = tokens.LESS_THAN;
+                nextToken = Tokens.LESS_THAN;
                 break;
             case';':
                 addChar();
-                nextToken = tokens.SEMI_COLON;
+                nextToken = Tokens.SEMI_COLON;
                 break;
             case':':
                 addChar();
-                nextToken = tokens.COLON;
+                nextToken = Tokens.COLON;
                 break;
             case',':
                 addChar();
-                nextToken = tokens.COMMA;
+                nextToken = Tokens.COMMA;
+                break;
+            case '.':
+                addChar();
+                nextToken = Tokens.DECIMAL;
                 break;
             default:
                 addChar();
-                nextToken = tokens.EOF;
+                nextToken = Tokens.EOF;
                 break;
         }
         return nextToken;
     }
 
     public static void addChar(){
-        if(lexLen <= 98){
-            lexemeArray[lexLen++] = nextChar;
-            lexemeArray[lexLen] = 0;
-        }
-        else
-            System.out.printf("Error - lexeme is too long\n");
+        lexemeList.add(lexLen++, nextChar);
+        lexemeList.add(lexLen, '\0');
     }
 
     public static void getChar(){
@@ -127,41 +161,62 @@ public class App {
             }
             else{
                 nextChar = '\0';
-                nextToken = tokens.EOF;
+                nextToken = Tokens.EOF;
             }
         }
         catch(IOException e){
             e.printStackTrace();
         }
         
-        if(nextToken != tokens.EOF){
+        if(nextToken != Tokens.EOF){
             if(Character.isLetter(nextChar)){
-                charClass = charClass.LETTER;
+                charClass = CharClass.LETTER;
             }
             else if(Character.isDigit(nextChar)){
-                charClass = charClass.DIGIT;
+                charClass = CharClass.DIGIT;
             }
             else if(nextChar == '_'){
-                charClass = charClass.UNDERSCORE;
+                charClass = CharClass.UNDERSCORE;
             }
             else
-                charClass = charClass.UNKNOWN;
+                charClass = CharClass.UNKNOWN;
         }
         else
-            charClass = charClass.EOF;
+            charClass = CharClass.EOF;
     }
 
-    public static void getNonBlank(){
-        while(Character.isWhitespace(nextChar)){
-            getChar();
+    public static void getNonBlank() {
+        while (Character.isWhitespace(nextChar)) {
+            if (nextChar == '\r') {
+                getChar();
+                if (nextChar == '\n') {
+                    getChar(); // Windows-style \r\n
+                }
+                lineCount++;
+            } 
+            else if (nextChar == '\n') {
+                lineCount++;
+                getChar(); // Unix-style \n
+            } 
+            else {
+                getChar(); // Regular whitespace
+            }
         }
     }
 
-    public static tokens lex(){
+    //converts the characters in lexemeList into a string
+    public static String convertLexemeListToString(){
+        StringBuilder sb = new StringBuilder();
+        for (char c : lexemeList) {
+                sb.append(c);
+            }
+        return lexemeString = sb.toString().trim();
+    }
+
+    public static Tokens lex(){
         lexLen = 0;
-        for(int i =0;lexemeArray[i]!= '\0'; i++){
-            lexemeArray[i] = '\0';
-        }
+        //empty the lexemeList
+        lexemeList.clear();
         getNonBlank();
         switch(charClass){
             /*parse identifiers */
@@ -169,64 +224,58 @@ public class App {
             case UNDERSCORE:
                 addChar();
                 getChar();
-                while(charClass == charClass.LETTER || 
-                      charClass == charClass.DIGIT || 
-                      charClass == charClass.UNDERSCORE){
+                while(charClass == CharClass.LETTER || 
+                      charClass == CharClass.DIGIT || 
+                      charClass == CharClass.UNDERSCORE){
                     addChar();
                     getChar();
                 }
-                lexemeString = new String(lexemeArray).trim();
+                lexemeString = convertLexemeListToString();
                 switch(lexemeString){
                     case "program":
-                        nextToken = tokens.PROGRAM;
+                        nextToken = Tokens.PROGRAM;
                         break;
                     case "begin":
-                        nextToken = tokens.BEGIN;
+                        nextToken = Tokens.BEGIN;
                         break;
                     case "end":
-                        nextToken = tokens.END;
+                        nextToken = Tokens.END;
                         break;
                     case "if":
-                        nextToken = tokens.IF;
+                        nextToken = Tokens.IF;
                         break;
                     case "then":
-                        nextToken = tokens.THEN;
+                        nextToken = Tokens.THEN;
                         break;
                     case "else":
-                        nextToken = tokens.ELSE;
+                        nextToken = Tokens.ELSE;
                         break;
                     case "input":
-                        nextToken = tokens.INPUT;
+                        nextToken = Tokens.INPUT;
                         break;
                     case "output":
-                        nextToken = tokens.OUTPUT;
+                        nextToken = Tokens.OUTPUT;
                         break;
                     case "int":
-                        nextToken = tokens.TYPE;
+                        nextToken = Tokens.TYPE;
                         break;
                     case "float":
-                        nextToken = tokens.TYPE;
+                        nextToken = Tokens.TYPE;
                         break;
                     case "double":
-                        nextToken = tokens.TYPE;
+                        nextToken = Tokens.TYPE;
                         break;
                     case "while":
-                        nextToken = tokens.WHILE;
+                        nextToken = Tokens.WHILE;
                         break;
                     case "loop":
-                        nextToken = tokens.LOOP;
+                        nextToken = Tokens.LOOP;
                         break;
                     case "call":
-                        nextToken = tokens.FUN_CALL;
+                        nextToken = Tokens.FUN_CALL;
                         break;
                     default:
-                        nextToken = tokens.IDENT;
-                        if(!identifiers.contains(lexemeString)){
-                            identifiers.add(lexemeString);
-                        }
-                        else{
-                            //error
-                        }
+                        nextToken = Tokens.IDENT;
                         break;
                 }
 
@@ -235,38 +284,45 @@ public class App {
             case DIGIT:
                 addChar();
                 getChar();
-                while(charClass == charClass.DIGIT){
+                int i = 0;
+                while(charClass == CharClass.DIGIT && i < 11){
                     addChar();
                     getChar();
+                    i++;
                 }
-                nextToken = tokens.INT_LIT;
+                if(nextChar == '.'){
+                    addChar();
+                    getChar();
+                    while (charClass == CharClass.DIGIT && i < 11) {
+                        addChar();
+                        getChar();
+                        i++;
+                    }
+                }
+                if(i>10){
+                    foundError("Error !! Integer or floating point too long at line ", lineCount);
+                }
+                nextToken = Tokens.INT_LIT;
                 break;
             /*parentheses and operators */
             case UNKNOWN:
                 lookup(nextChar);
-                if(nextToken == tokens.LESS_THAN){
+                if(nextToken == Tokens.LESS_THAN){
                     addChar();
                     getChar();
                     lookup(nextChar);
-                    if(nextToken == tokens.GREATER_THAN){
+                    if(nextToken == Tokens.GREATER_THAN){
                         addChar();
                         getChar();
-                        nextToken = tokens.NOT_EQUALS;
-                    }
-                    else{
-                        //error
+                        nextToken = Tokens.NOT_EQUALS;
                     }
                 }
-                else if(nextToken == tokens.COLON){
+                else if(nextToken == Tokens.COLON){
                     getChar();
                     if(nextChar == '='){
                         lookup(nextChar);
-                        if(nextToken == tokens.EQUALS){
-                            //getChar();
-                            nextToken = tokens.ASSIGN_OP;
-                        }
-                        else{
-                            //error
+                        if(nextToken == Tokens.EQUALS){
+                            nextToken = Tokens.ASSIGN_OP;
                         }
                     }
                 }
@@ -274,274 +330,422 @@ public class App {
                 break;
             /*EOF */
             case EOF:
-                nextToken = tokens.EOF;
-                lexemeArray[0] = 'E';
-                lexemeArray[1] = 'O';
-                lexemeArray[2] = 'F';
-                lexemeArray[3] = 0;
+                nextToken = Tokens.EOF;
+                lexemeList.add(0, 'E');
+                lexemeList.add(1, 'O');
+                lexemeList.add(2, 'F');
+                lexemeList.add(3, '\0');
+                break;
+            case ERROR:
                 break;
         }
-        lexemeString = new String(lexemeArray).trim();
-        System.out.printf("Next token is: %s, Next lexeme is %s\n", nextToken, lexemeString);
+        lexemeString = convertLexemeListToString();
+        //System.out.printf("Next token is: %s, Next lexeme is %s\n", nextToken, lexemeString);
         return nextToken;
     }
     //EXPR -> FACTOR | FACTOR (+|-) EXPR
      public static void EXPR(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("EXPR\n");
         FACTOR(); // parse first factor
-        if(nextToken == tokens.ADD_OP || nextToken == tokens.SUB_OP){
+        if(isThereErrors()){
+            return;
+        }
+        if(nextToken == Tokens.ADD_OP || nextToken == Tokens.SUB_OP){
             lex(); 
             EXPR();
         } // get the next token and parse the next EXPR
     }
     //FACTOR -> OPERAND | OPERAND (*|/) FACTOR
     public static void FACTOR(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("FACTOR\n");
         OPERAND(); // parse the first operand
-        if(nextToken == tokens.MULT_OP || nextToken == tokens.DIV_OP){
+        if(isThereErrors()){
+            return;
+        }
+        if(nextToken == Tokens.MULT_OP || nextToken == Tokens.DIV_OP){
             lex(); 
             FACTOR();
         } // get the next token and parse the next FACTOR
     }
     //OPERAND -> NUM|ID|( EXPR )|FUNCALL 
     public static void OPERAND(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("OPERAND\n");
         //Determine which RHS
-        if(nextToken == tokens.IDENT || nextToken == tokens.INT_LIT)
-          {lex();} //get next token
-        else if (nextToken == tokens.FUN_CALL) //Function call
-          {
+        if((nextToken == Tokens.IDENT && identifiers.contains(lexemeString)) || nextToken == Tokens.INT_LIT){
+            lex();
+        }
+        else if(nextToken == Tokens.IDENT && !identifiers.contains(lexemeString)){
+          foundError("ERROR !! Cannot use identifier before it has been declared! Error at line ", lineCount);
+        } 
+        //function call
+        else if (nextToken == Tokens.FUN_CALL){
             lex();
             FUN_CALL();
-          }
-        else if (nextToken == tokens.LEFT_PAREN)//( EXPR )
-          {
+        }
+        //( EXPR )
+        else if (nextToken == Tokens.LEFT_PAREN){
             lex(); 
             EXPR(); 
-           if(nextToken == tokens.RIGHT_PAREN)
-              {lex();}
-           //else{error();}
-          }
-         //else {error();}
+            if(isThereErrors()){
+                return;
+            }
+           if(nextToken == Tokens.RIGHT_PAREN){
+                lex();
+            }
+           else{
+                foundError("Error !! Missing right paranthesis at line ", lineCount);
+            }
+        }
+        else {
+            foundError("Error !! Unknown token! Needs to be either a number, identifier, ( expression ), or function call. Error at line ", lineCount);
+        }
     }
     //ID_LIST -> ID | ID , ID_LIST
-    public static void ID_LIST(){
+    public static void ID_LIST(boolean declaringIDs){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("ID_LIST\n");
-        if(nextToken == tokens.IDENT){
-            lex();
-            if(nextToken == tokens.COMMA){
+        if(nextToken == Tokens.IDENT){
+            //declaring an ID not yet declared
+            if(declaringIDs && !identifiers.contains(lexemeString)){
+                identifiers.add(lexemeString);
                 lex();
-                ID_LIST();
+            }
+            //using an ID not yet declared
+            else if(!declaringIDs && !identifiers.contains(lexemeString)){
+                foundError("ERROR !! Identifier not declared at line ", lineCount);
+            }
+            //declaring an ID already declared
+            else if(declaringIDs && identifiers.contains(lexemeString)){
+                foundError("ERROR !! Identifier already declared! Cannot redeclare a variable! Error at line ", lineCount);
+            }
+            //using an ID that has been declared already
+            else{
+                lex();
+            }
+            //continue if there are more IDs AND no errors found
+            if(nextToken == Tokens.COMMA && !(isThereErrors())){
+                lex();
+                ID_LIST(declaringIDs);
             }
         }
         else{
-            //error
+            foundError("Error !! Token is not an identifier at line ", lineCount);
         }
     }
     //FUNCALL -> call ID( ID_LIST )
     public static void FUN_CALL(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("FUNCALL\n");
-        ID();
-        lex();
-        if(nextToken == tokens.LEFT_PAREN){
+        if(nextToken == Tokens.IDENT){
             lex();
-            ID_LIST();
-            if(nextToken == tokens.RIGHT_PAREN){
+            if(nextToken == Tokens.LEFT_PAREN){
                 lex();
+                ID_LIST(false);
+                if(isThereErrors()){
+                    return;
+                }
+                if(nextToken == Tokens.RIGHT_PAREN){
+                    lex();
+                }
+                else{
+                    foundError("Error !! Missing right parenthesis at line ", lineCount);
+                }
             }
             else{
-                //error
+                foundError("Error !! Missing left parenthesis at line ", lineCount);
             }
         }
         else{
-            //error
+            foundError("Error !! Token is not an identifier at line ", lineCount);
         }
     }
     //COMP -> ( OPERAND = OPERAND ) 
     //      | ( OPERAND <> OPERAND ) 
     //      | ( OPERAND (<|>) OPERAND )
     public static void COMP(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("COMP\n");
-        if(nextToken == tokens.LEFT_PAREN){
+        if(nextToken == Tokens.LEFT_PAREN){
             lex();
             OPERAND();
-            if(nextToken == tokens.EQUALS || 
-                nextToken == tokens.NOT_EQUALS ||
-                nextToken == tokens.GREATER_THAN||
-                nextToken == tokens.LESS_THAN){
+            if(isThereErrors()){
+                return;
+            }
+            if(nextToken == Tokens.EQUALS || 
+                nextToken == Tokens.NOT_EQUALS ||
+                nextToken == Tokens.GREATER_THAN||
+                nextToken == Tokens.LESS_THAN){
                     lex();
                     OPERAND();
-                    if(nextToken == tokens.RIGHT_PAREN){
+                    if(isThereErrors()){
+                        return;
+                    }
+                    if(nextToken == Tokens.RIGHT_PAREN){
                         lex();
                     }
                     else{
-                        //error
+                        foundError("Error !! Missing right parenthesis at line ", lineCount);
                     }
             }
             else{
-                //error
+                foundError("Error !! Missing operator ('=', '<>', '<', or '>') at line ", lineCount);
             }
         }
         else{
-            //error
+            foundError("Error !! Missing left parenthesis at line ", lineCount);
         }
     }
     //DECL -> ID_LIST : TYPE ;
     public static void DECL(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("DECL\n");
-        ID_LIST();
-        if(nextToken == tokens.COLON){
+        ID_LIST(true);
+        if(isThereErrors()){
+            return;
+        }
+        if(nextToken == Tokens.COLON){
+            if(isThereErrors()){
+                return;
+            }
             lex(); //get next token
-            if(nextToken == tokens.TYPE){
+            if(nextToken == Tokens.TYPE){
                 lex();
-                if(nextToken == tokens.SEMI_COLON){
+                if(isThereErrors()){
+                    return;
+                }
+                if(nextToken == Tokens.SEMI_COLON){
                     lex();
                 }
                 else{
-                    //error
+                    foundError("Error !! Missing semi-colon at line ", lineCount);
                 }
             }
             else{
-                //error
+                foundError("Error !! Missing variable type at line ", lineCount);
             }
         }
         else{
-            //error
+            foundError("Error !! Missing colon at line ", lineCount);
         }
     }
     //DECL_SEC -> DECL | DECL DECL_SEC
     public static void DECL_SEC(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("DECL_SEC\n");
         DECL();
-        if(nextToken == tokens.IDENT){
+        if(isThereErrors()){
+            return;
+        }
+        if(nextToken == Tokens.IDENT){
             DECL_SEC();
         }
     }
     //ASSIGN -> ID := EXPR ;
     public static void ASSIGN(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("ASSIGN\n");
+        if(!identifiers.contains(lexemeString)){
+            foundError("ERROR !! Cannot use identifier before it has been declared! Error at line ", lineCount);
+            return;
+        }
         lex();
-        if(nextToken == tokens.ASSIGN_OP){
+        if(nextToken == Tokens.ASSIGN_OP){
             lex();
             EXPR();
-            if(nextToken == tokens.SEMI_COLON){
+            if(isThereErrors()){
+                return;
+            }
+            if(nextToken == Tokens.SEMI_COLON){
                 return;
             }
             else{
-                //error
+                foundError("Error !! Missing semi-colon at line ", lineCount);
             }
         }
         else{
-            //error
+            foundError("Error !! Missing assignment operator at line ", lineCount);
         }
     }
     //IFSTMT -> if COMP then STMT_SEC end if ; |
     //          if COMP then STMT_SEC else STMT_SEC end if ;
     public static void IF_STMT(){
-        System.out.printf("IFSTMT");
+        if(isThereErrors()){
+            return;
+        }
+        System.out.printf("IF_STMT\n");
         lex();
         COMP();
-        if(nextToken == tokens.THEN){
+        if(isThereErrors()){
+            return;
+        }
+        if(nextToken == Tokens.THEN){
             lex();
-            STMT_SEC();
-            if(nextToken == tokens.ELSE){
+            while(nextToken != Tokens.ELSE && nextToken != Tokens.END){
+                STMT_SEC();
+                if(isThereErrors()){
+                    return;
+                }
+            }
+            if(nextToken == Tokens.ELSE){
                 lex();
                 STMT_SEC();
+                if(isThereErrors()){
+                    return;
+                }
             }
-            if(nextToken == tokens.END){
+            if(nextToken == Tokens.END){
                 lex();
-                if(nextToken == tokens.IF){
+                if(nextToken == Tokens.IF){
                     lex();
-                    if(nextToken == tokens.SEMI_COLON){
-                        lex();
+                    if(nextToken == Tokens.SEMI_COLON){
+                        return;
                     }
                     else{
-                        //error
+                        foundError("Error !! Missing semi-colon at line ", lineCount);
                     }
                 }
                 else{
-                    //error
+                    foundError("Error !! Missing 'if' token at line ", lineCount);
                 }
             }
             else{
-                //error
+                foundError("Error !! Missing 'end' token at line ", lineCount);
             }
         }
         else{
-            //error
+            foundError("Error !! Missing 'then' token at line ", lineCount);
         }
     }
     //WHILESTMT -> while COMP loop STMT_SEC end loop ;
     public static void WHILE_STMT(){
-        System.out.printf("WHILESTMT\n");
+        if(isThereErrors()){
+            return;
+        }
+        System.out.printf("WHILE_STMT\n");
         lex();
         COMP();
-        if(nextToken == tokens.LOOP){
+        if(isThereErrors()){
+            return;
+        }
+        if(nextToken == Tokens.LOOP){
             lex();
             STMT_SEC();
-            if(nextToken == tokens.END){
+            if(isThereErrors()){
+                return;
+            }
+            if(nextToken == Tokens.END){
                 lex();
-                if(nextToken == tokens.LOOP){
+                if(nextToken == Tokens.LOOP){
                     lex();
-                    if(nextToken == tokens.SEMI_COLON){
+                    if(nextToken == Tokens.SEMI_COLON){
                         return;
                     }
                     else{
-                        //error
+                        foundError("Error !! Missing semi-colon at line ", lineCount);
                     }
                 }
                 else{
-                    //error
+                    foundError("Error !! Missing 'loop' token at line ", lineCount);
                 }
             }
             else{
-                //error
+                foundError("Error !! Missing 'end' token at line ", lineCount);
             }
         }
         else{
-            //error
+            foundError("Error !! Missing 'loop' token at line ", lineCount);
         }
     }
     //INPUT -> input ID_LIST;
     public static void INPUT(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("INPUT\n");
-        if(nextToken == tokens.INPUT){
+        if(nextToken == Tokens.INPUT){
             lex();
-            ID_LIST();
-            if(nextToken == tokens.SEMI_COLON){
+            ID_LIST(false);
+            if(isThereErrors()){
+                return;
+            }
+            if(nextToken == Tokens.SEMI_COLON){
                 return;
             }
             else{
-                //error
+                foundError("Error !! Missing semi-colon at line ", lineCount);
             }
         }
         else{
-            //error
+            foundError("Error !! Missing 'input' token at line ", lineCount);
         }
     }
-    //OUTPUT -> output ID_LIST | output NUM;
-    //////**********should there be a semi colon after ID_LIST ?
+    //OUTPUT -> output ID_LIST; | output NUM;
     public static void OUTPUT(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("OUTPUT\n");
-        if(nextToken == tokens.OUTPUT){//can get rid off already checked
+        if(nextToken == Tokens.OUTPUT){//can get rid off already checked
             lex();
             //could do switch stmt here
-            if(nextToken == tokens.IDENT){
-                ID_LIST();
+            if(nextToken == Tokens.IDENT){
+                ID_LIST(false);
+                if(isThereErrors()){
+                    return;
+                }
+                if(nextToken == Tokens.SEMI_COLON){
+                    return;
+                }
+                else{
+                    foundError("Error !! Missing semi-colon at line ", lineCount);
+                }
             }
-            else if(nextToken == tokens.INT_LIT){
-                //NUM();
+            else if(nextToken == Tokens.INT_LIT){
+                lex();
+                if(isThereErrors()){
+                    return;
+                }
+                if(nextToken == Tokens.SEMI_COLON){
+                    return;
+                }
+                else{
+                    foundError("Error !! Missing semi-colon at line ", lineCount);
+                }
             }
             else{
-                //error
+                foundError("Error !! Missing either a list of identifiers or a number to output at line ", lineCount);
             }
         }
         else{
-            //error
+            foundError("Error !! Missing 'output' token at line ", lineCount);
         }
     }
     //STMT -> ASSIGN | IFSTMT | WHILESTMT | INPUT | OUTPUT
     public static void STMT(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("STMT\n");
         switch (nextToken) {
             case IDENT:
@@ -560,15 +764,24 @@ public class App {
                 OUTPUT();
                 break;
             default:
-                throw new AssertionError();
+                foundError("Error !! Illegal start to a statement needs to be either an Assignment, If statment, While statement, input, or output ! Error at line ", lineCount);
+        }
+        if(isThereErrors()){
+            return;
         }
         lex();
     }
     //STMT_SEC -> STMT | STMT STMT_SEC
     public static void STMT_SEC(){
+        if(isThereErrors()){
+            return;
+        }
         System.out.printf("STMT_SEC\n");
         STMT();
-        if(nextToken != tokens.END){
+        if(isThereErrors()){
+            return;
+        }
+        if(nextToken != Tokens.END && nextToken != Tokens.ELSE){
             STMT_SEC();
         }
     }
@@ -576,34 +789,45 @@ public class App {
     //           program begin STMT_SEC end;        
     public static void PROGRAM(){
         System.out.printf("PROGRAM\n");
-        if(lexemeString.contains("program")){
+        if(nextToken == Tokens.PROGRAM){
             lex();
-            if(nextToken == tokens.IDENT){
+            if(nextToken == Tokens.IDENT){
                 DECL_SEC();
+                if(isThereErrors()){
+                    return;
+                }
             }
-            if(lexemeString.contains("begin")){
+            if(nextToken == Tokens.BEGIN){
                 lex();
                 STMT_SEC();
-                if(lexemeString.contains("end")){
+                if(isThereErrors()){
+                    return;
+                }
+                if(nextToken == Tokens.END){
                     lex();
-                    if(nextToken == tokens.SEMI_COLON){
+                    if(nextToken == Tokens.SEMI_COLON){
                         lex();
+                        if(nextToken == Tokens.EOF){
+                            return;
+                        }
+                        else{
+                            foundError("Error !! Cannot execute code after ending program! Error at line ", lineCount);
+                        }
                     }
                     else{
-                        //error
+                        foundError("Error !! Missing semi-colon at line ", lineCount);
                     }
                 }
                 else{
-                    //error
+                    foundError("Error !! Missing 'end' token at line ", lineCount);
                 }
             }
             else{
-                //error
+                foundError("Error !! Missing 'begin' token at line ", lineCount);
             }
         }
         else{
-            //error
+            foundError("Error !! Missing 'program' token at line ", lineCount);
         }
     }
 }
-
